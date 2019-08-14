@@ -1,0 +1,9 @@
+### PowerShell ###
+# Exclude packaged modules
+*.zip
+
+# Exclude .p12 files.
+*.p12
+
+# Exclude configuration file
+configuration.*
