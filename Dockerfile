@@ -16,4 +16,5 @@ RUN Install-Module -Name PSGSuite -F
 COPY src /app
 WORKDIR /app
 
-ENTRYPOINT [ "pwsh", "-C", "/app/sync.ps1", "$verbosePreference='SilentlyContinue'" ]
+ENTRYPOINT [ "pwsh", "-C" ]
+CMD ["/app/sync.ps1"]

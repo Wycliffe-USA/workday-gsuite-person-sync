@@ -39,11 +39,11 @@ $workdayUsers = @{}
 #  Here, you can mount the json file inside the container at /config or take a pre-configured Configuration.psd1 file available inside the same folder
 #  and place it inside the /config file instead.
 #  See https://github.com/scrthq/PSGSuite/wiki/Set-PSGSuiteConfig for more information.
-If(Get-Item /config/Configuration.json){
-  If (!('/root/.config/powershell/SCRT HQ/PSGSuite')){New-Item -Force -Type Directory '/root/.config/powershell/SCRT HQ/PSGSuite'}
+If(Get-Item /config/Configuration.json -ErrorAction SilentlyContinue){
+  If (!(Get-Item /'root/.config/powershell/SCRT HQ/PSGSuite/Configuration.psd1' -ErrorAction SilentlyContinue)){mkdir -p '/root/.config/powershell/SCRT HQ/PSGSuite'}
   import-psgsuiteconfig -Path /config/Configuration.json
-}ElseIf(Get-Item /config/Configuration.psd1){
-    If (!('/root/.config/powershell/SCRT HQ/PSGSuite')){New-Item -Force -Type Directory '/root/.config/powershell/SCRT HQ/PSGSuite'}
+}ElseIf(Get-Item /config/Configuration.psd1 -ErrorAction SilentlyContinue){
+  If (!(Get-Item /'root/.config/powershell/SCRT HQ/PSGSuite/Configuration.psd1' -ErrorAction SilentlyContinue)){mkdir -p '/root/.config/powershell/SCRT HQ/PSGSuite'}
   cp /config/Configuration.psd1 /root/.config/powershell/'SCRT HQ'/PSGSuite/Configuration.psd1
 }
 
