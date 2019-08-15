@@ -269,7 +269,7 @@ ForEach ($key in $workdayUsers.keys){
 
       #Determine if account move is necessary.
       if ($gSuiteUser.orgUnitPath -notlike "$targetOU*"){
-        $output = "Enable - Move: GSuite user " + $gSuiteUser.($userFieldMapping['staffID']['gs']) + " (Display Name: " + $gSuiteUser.($userFieldMapping['displayName']['gs']) + ", ID: " + $gSuiteUser.id + ") should be moved to '$targetOU' OU in gSuite. Reason: Account found in Workday but in the wrong gSuite OU."
+        $output = "Enable - Move: GSuite user " + $gSuiteUser.($userFieldMapping['staffID']['gs']) + " (Display Name: " + $gSuiteUser.($userFieldMapping['displayName']['gs']) + ", ID: " + $gSuiteUser.id + ") should be moved from '" + $gSuiteUser.orgUnitPath +"' to '$targetOU' OU in gSuite. Reason: Account found in Workday but in the wrong gSuite OU."
         Write-Output $output
 
         $confirmOutput = 'Update-GSUser -User ' + $gSuiteUser.user + " -OrgUnitPath: '" + $targetOU + "'"
