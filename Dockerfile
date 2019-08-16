@@ -10,7 +10,8 @@ COPY files/wycliffe_firewall_ssl.crt /usr/local/share/ca-certificates/wycliffe_f
 RUN update-ca-certificates
 
 #Install the PSGSuite package from the PowerShell Gallery
-RUN Install-Module -Name PSGSuite -F 
+RUN Install-Module -Name PSGSuite -F ; `
+    Block-CoreCLREncryptionWarning
 
 #Copy sync source into image
 COPY src /app

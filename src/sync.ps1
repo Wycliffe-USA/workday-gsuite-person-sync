@@ -40,10 +40,10 @@ $workdayUsers = @{}
 #  and place it inside the /config file instead.
 #  See https://github.com/scrthq/PSGSuite/wiki/Set-PSGSuiteConfig for more information.
 If(Get-Item /config/Configuration.json -ErrorAction SilentlyContinue){
-  If (!(Get-Item /'root/.config/powershell/SCRT HQ/PSGSuite/Configuration.psd1' -ErrorAction SilentlyContinue)){mkdir -p '/root/.config/powershell/SCRT HQ/PSGSuite'}
+  If (!(Get-Item '/root/.config/powershell/SCRT HQ/PSGSuite/Configuration.psd1' -ErrorAction SilentlyContinue)){mkdir -p '/root/.config/powershell/SCRT HQ/PSGSuite'}
   import-psgsuiteconfig -Path /config/Configuration.json
 }ElseIf(Get-Item /config/Configuration.psd1 -ErrorAction SilentlyContinue){
-  If (!(Get-Item /'root/.config/powershell/SCRT HQ/PSGSuite/Configuration.psd1' -ErrorAction SilentlyContinue)){mkdir -p '/root/.config/powershell/SCRT HQ/PSGSuite'}
+  If (!(Get-Item '/root/.config/powershell/SCRT HQ/PSGSuite/Configuration.psd1' -ErrorAction SilentlyContinue)){mkdir -p '/root/.config/powershell/SCRT HQ/PSGSuite'}
   cp /config/Configuration.psd1 /root/.config/powershell/'SCRT HQ'/PSGSuite/Configuration.psd1
 }
 
@@ -63,12 +63,12 @@ $userFieldMapping = @{
 function finalStatusReport(){
   if ($errors.Count -ge 1){
     #There were errors during the process.  Report the error and exit with a status 1
-    $output = "Workday-LDAP-Person-Sync completed with error(s) in " + [math]::Round(((Get-Date) - $runTimeSTart).TotalMinutes,2) + " minutes."
+    $output = "Workday-GSuite-Person-Sync completed with error(s) in " + [math]::Round(((Get-Date) - $runTimeSTart).TotalMinutes,2) + " minutes."
     Write-Error $output
     exit 1
   }else{
     #No errors during the process.  Exit with status 0
-    $output = "Workday-LDAP-Person-Sync completed successfully with no errors in " + [math]::Round(((Get-Date) - $runTimeSTart).TotalMinutes,2) + " minutes."
+    $output = "Workday-GSuite-Person-Sync completed successfully with no errors in " + [math]::Round(((Get-Date) - $runTimeSTart).TotalMinutes,2) + " minutes."
     Write-Output $output
     exit 0
   }
