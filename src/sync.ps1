@@ -218,7 +218,7 @@ ForEach ($key in $workdayUsers.keys){
           # In this section, we update the primary email address (username) of the person.  This comes from a custom field in workday called 'WycliffeUSAEmailID'.
           ###vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv###
           if ($gSuiteUser.($userFieldMapping['email']['gs']) -ne $workdayUser.($userFieldMapping['email']['wd'])){
-            $output = "Update Primary Email (Username): Workday User " + $workdayUser.($userFieldMapping['staffID']['wd']) + " (" + $workdayUser.($userFieldMapping['givenName']['wd']) + ")'s Wycliffe USA Email ID '" + $workdayUser.($userFieldMapping['email']['wd']) + "' does not match gSuite user " + $gSuiteUser.($userFieldMapping['staffID']['gs']) + " (" + $gSuiteUser.($userFieldMapping['givenName']['gs']) + ")'s Primary Email '"+ $gSuiteUser.($userFieldMapping['email']['gs']) +"'. Updating."
+            $output = "Update Primary Email (Username): Workday User " + $workdayUser.($userFieldMapping['staffID']['wd']) + " (" + $workdayUser.($userFieldMapping['displayName']['wd']) + ")'s Wycliffe USA Email ID '" + $workdayUser.($userFieldMapping['email']['wd']) + "' does not match gSuite user " + $gSuiteUser.($userFieldMapping['staffID']['gs']) + " (" + $gSuiteUser.($userFieldMapping['givenName']['gs']) + ")'s Primary Email '"+ $gSuiteUser.($userFieldMapping['email']['gs']) +"'. Updating."
             Write-Output $output
 
             # $confirmOutput = 'Update-GSUser -User ' + $gSuiteUser.user + ' -PrimaryEmail ' + $workdayUser.($userFieldMapping['email']['wd'])
@@ -314,7 +314,7 @@ ForEach ($key in $workdayUsers.keys){
         $recordChanges += 1
       }
     }else{
-      $output = 'Workday User ' + $workdayUser.($userFieldMapping['staffID']['wd']) + '(' + $workdayUser.($userFieldMapping['displayName']['wd']) + ') has an invalid or missing WycliffeUSAEmailID (' + $workdayUser.($userFieldMapping['email']['wd']) + ') from Workday.'
+      $output = 'Workday User ' + $workdayUser.($userFieldMapping['staffID']['wd']) + ' (' + $workdayUser.($userFieldMapping['displayName']['wd']) + ') has an invalid or missing WycliffeUSAEmailID (' + $workdayUser.($userFieldMapping['email']['wd']) + ') from Workday.'
       Write-Error $output
       $errors += $output
     }
