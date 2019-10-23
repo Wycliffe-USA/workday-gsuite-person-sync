@@ -1,4 +1,5 @@
 # Workday to gSuite Person Sync
+# V 1.1
 
 Synchronizes users from Workday to gSuite.  Responsible for new account creation, account information updates, and account deactivations.
 

@@ -221,10 +221,10 @@ ForEach ($key in $workdayUsers.keys){
             $output = "Update Primary Email (Username): Workday User " + $workdayUser.($userFieldMapping['staffID']['wd']) + " (" + $workdayUser.($userFieldMapping['displayName']['wd']) + ")'s Wycliffe USA Email ID '" + $workdayUser.($userFieldMapping['email']['wd']) + "' does not match gSuite user " + $gSuiteUser.($userFieldMapping['staffID']['gs']) + " (" + $gSuiteUser.($userFieldMapping['givenName']['gs']) + ")'s Primary Email '"+ $gSuiteUser.($userFieldMapping['email']['gs']) +"'. Updating."
             Write-Output $output
 
-            # $confirmOutput = 'Update-GSUser -User ' + $gSuiteUser.user + ' -PrimaryEmail ' + $workdayUser.($userFieldMapping['email']['wd'])
-            # If ($PSCmdlet.ShouldProcess($gSuiteUser.User,$confirmOutput)) {
-            #   Update-GSUser -User $gSuiteUser.User -PrimaryEmail $workdayUser.($userFieldMapping['email']['wd'])
-            # }
+            $returnObj = Update-GSUser -User $gSuiteUser.User -PrimaryEmail $workdayUser.($userFieldMapping['email']['wd']) -ErrorVariable errorOutput
+            if($errorOutput){
+              $errors += $errorOutput
+            }
           }
           ###^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^###
         }elseif(($field -eq 'givenName')-Or($field -eq 'lastName')-Or($field -eq 'displayName')){
