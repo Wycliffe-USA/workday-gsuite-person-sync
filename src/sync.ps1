@@ -118,7 +118,6 @@ $output = "Beginning sync for "+$result.Count+ " users."; Write-Output $output
 
 #####################################################
 ###VVVVVVVVV Get User Data From gSuite VVVVVVVVVV###
-# Can simplify these when ActiveDirecotry Module available to powershell-core
 ForEach ($gSuiteUser in (Get-GSUser -Filter * -Fields 'id,name,primaryEmail,externalIds,suspended,SuspensionReason,user,FullName,OrgUnitPath,CustomSchemas,LastLoginTime' -ErrorVariable errorOutput)){
 #ForEach ($gSuiteUser in (Get-GSUser -Filter * -Fields '*' -ErrorVariable errorOutput)){
   #Build a Hashtable of GSuite Users.  This will help to save time later by calling up the workdayUser's staffID in the table rather than cycle through the GS user list in each and every nested for loop.  
