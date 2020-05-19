@@ -4,7 +4,8 @@ param (
   [string]$workdayRptUsr,
   [string]$workdayRptPwd,
   [string]$workdayRptUri,
-  [int]$failsafeRecordChangeLimit = 5
+  [int]$failsafeRecordChangeLimit = 5,
+  [string]$emailIDFieldName       = 'WycliffeUSAEmailID'
 )
 
 ## Notes
@@ -205,13 +206,13 @@ ForEach ($key in $workdayUsers.keys){
           #Field - email
           # In this section, we update the primary email address (username) of the person.  This comes from a custom field in workday called 'WycliffeUSAEmailID'.
           ###vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv###
-          if ($gSuiteUser.primaryEmail -ne $workdayUser.WycliffeUSAEmailID){
-            $output = "Update Primary Email (Username): Workday User " + $workdayUser.staffID + " (" + $workdayUser.displayName + ")'s Wycliffe USA Email ID '" + $workdayUser.WycliffeUSAEmailID + "' does not match gSuite user " + $gSuiteUser.employeeID + " (" + $gSuiteUser.givenName + ")'s Primary Email '"+ $gSuiteUser.primaryEmail +"'. Updating."
+          if ($gSuiteUser.primaryEmail -ne $workdayUser.($emailIDFieldName)){
+            $output = "Update Primary Email (Username): Workday User " + $workdayUser.staffID + " (" + $workdayUser.displayName + ")'s Wycliffe USA Email ID '" + $workdayUser.($emailIDFieldName) + "' does not match gSuite user " + $gSuiteUser.employeeID + " (" + $gSuiteUser.givenName + ")'s Primary Email '"+ $gSuiteUser.primaryEmail +"'. Updating."
             Write-Output $output
 
-            $confirmOutput = 'Update-GSUser -User ' + $gSuiteUser.user + ' -PrimaryEmail ' + $workdayUser.WycliffeUSAEmailID
+            $confirmOutput = 'Update-GSUser -User ' + $gSuiteUser.user + ' -PrimaryEmail ' + $workdayUser.($emailIDFieldName)
             If ($PSCmdlet.ShouldProcess($gSuiteUser.User,$confirmOutput)) {
-              $returnObj = Update-GSUser -User $gSuiteUser.User -PrimaryEmail $workdayUser.WycliffeUSAEmailID -Confirm:$false -ErrorVariable errorOutput
+              $returnObj = Update-GSUser -User $gSuiteUser.User -PrimaryEmail $workdayUser.($emailIDFieldName) -Confirm:$false -ErrorVariable errorOutput
               if($errorOutput){
                 $errors += $errorOutput
               }
@@ -296,16 +297,16 @@ ForEach ($key in $workdayUsers.keys){
     If ($workdayUser.accountLocked -eq 'True'){$suspend = $True}else{$suspend = $False}
 
     #Check for valid email (WycliffeUSAEmailID) from workday
-    if ($workdayUser.WycliffeUSAEmailID|select-string '@'){
+    if ($workdayUser.($emailIDFieldName)|select-string '@'){
       #Create the account.
-      $confirmOutput = 'New-GSUser -User ' + $workdayUser.WycliffeUSAEmailID.ToLower() + ' -ExternalIds ' + $externalId.Value + ' -GivenName ' + $workdayUser.givenName + ' -FamilyName ' + $workdayUser.lastName + " -OrgUnitPath '$targetOU' -Suspended:$suspend" + ' -IncludeInGlobalAddressList:$false -Password <Hidden>'
+      $confirmOutput = 'New-GSUser -User ' + $workdayUser.($emailIDFieldName).ToLower() + ' -ExternalIds ' + $externalId.Value + ' -GivenName ' + $workdayUser.givenName + ' -FamilyName ' + $workdayUser.lastName + " -OrgUnitPath '$targetOU' -Suspended:$suspend" + ' -IncludeInGlobalAddressList:$false -Password <Hidden>'
       If ($PSCmdlet.ShouldProcess($workdayUser.staffID,$confirmOutput)) {
-        $returnObj = New-GSUser -PrimaryEmail $workdayUser.WycliffeUSAEmailID.ToLower() -ExternalIds $externalId -GivenName $workdayUser.givenName -FamilyName $workdayUser.lastName -OrgUnitPath $targetOU -Suspended:$suspend -IncludeInGlobalAddressList:$false -Password $rndPassword -ErrorVariable errorOutput
+        $returnObj = New-GSUser -PrimaryEmail $workdayUser.($emailIDFieldName).ToLower() -ExternalIds $externalId -GivenName $workdayUser.givenName -FamilyName $workdayUser.lastName -OrgUnitPath $targetOU -Suspended:$suspend -IncludeInGlobalAddressList:$false -Password $rndPassword -ErrorVariable errorOutput
         if($errorOutput){$errors += $errorOutput}
         $recordChanges += 1
       }
     }else{
-      $output = 'Workday User ' + $workdayUser.staffID + ' (' + $workdayUser.displayName + ') has an invalid or missing WycliffeUSAEmailID (' + $workdayUser.WycliffeUSAEmailID + ') from Workday.'
+      $output = 'Workday User ' + $workdayUser.staffID + ' (' + $workdayUser.displayName + ') has an invalid or missing WycliffeUSAEmailID (' + $workdayUser.($emailIDFieldName) + ') from Workday.'
       Write-Error $output
       $errors += $output
     }
