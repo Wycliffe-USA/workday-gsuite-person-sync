@@ -30,11 +30,15 @@ The container runs from an image that is build and stored in the local docker hu
 ```
 cd [this directory]
 docker build -t dockerhub.wycliffe.org:5000/workday-gsuite-person-sync:latest .
+
+#Also add a version tag
+docker tag 'imagenumber' dockerhub.wycliffe.org:5000/workday-gsuite-person-sync:1.x
 ```
 
 ### Push the image to the repository
 ```
 docker push dockerhub.wycliffe.org:5000/workday-gsuite-person-sync:latest
+docker push dockerhub.wycliffe.org:5000/workday-gsuite-person-sync:1.x
 ```
 
 ### Working with special or un-managed accounts.
