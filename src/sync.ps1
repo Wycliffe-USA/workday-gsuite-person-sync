@@ -166,15 +166,55 @@ ForEach ($key in $workdayUsers.keys){
           if ($workdayUser.accountLocked -eq 'True'){
             #The workday account is locked. The gSuite user should be suspended if not already.
             if (!($gSuiteUser.Suspended)){
-              #This user isn't suspended in gSuite, but should be.
-              $output = "Suspend: Workday User " + $workdayUser.staffID + " (" +  $workdayUser.displayName + ") matching gSuite user " + $gSuiteUser.employeeID + " (Display Name: " + $gSuiteUser.fullName + ", ID: " + $gSuiteUser.id + ") should be suspended in gSuite due to their Workday account being locked, but is not."
-              Write-Output $output
+              #Sometimes we want to keep an account open for a period of time even if they are locked in Workday. (IDP needs to be disabled, but manager needs to access email, etc.)
+              #In these instances, we set an account_expire_date to set when the account should stay open until.  Conversely however, we could have set an account_expire_date for other reasons such as a contractor with a hard contract end-date.
+              #We don't necessarily want to keep these accounts from locking just because they have an account_expire_date.
+              #To keep an account open even though they are locked, set the account expire date AND set the wusa_custom_attribute - force_account_active_until_expire to 'yes', or True.
+              if ($gSuiteUser.CustomSchemas.wusa_custom_attributes.account_expire_date -And ((Get-Date) -lt ([datetime]::parseexact($gSuiteUser.CustomSchemas.wusa_custom_attributes.account_expire_date, 'yyyy-MM-dd', $null)))){
+                #The account_expire_date is set and the current date is less than the expire date.
 
-              $confirmOutput = 'Update-GSUser -User ' + $gSuiteUser.user + ' -Suspended:$true'
-              If ($PSCmdlet.ShouldProcess($gSuiteUser.User,$confirmOutput)) {
-                $returnObj = Update-GSUser -User $gSuiteUser.User -Suspended:$true -Confirm:$false -ErrorVariable errorOutput
-                if($errorOutput){$errors += $errorOutput}
-                $recordChanges += 1
+                #Determine if force_account_active_until_expire is set.
+                if ($gSuiteUser.CustomSchemas.wusa_custom_attributes.force_account_active_until_expire){
+                  #force_account_active_until_expire is set, so we should NOT deactivate this account.
+                }else{
+                  #force_account_active_until_expire is not set and since the account is locked in workday, it should be locked here.
+                  #This user isn't suspended in gSuite, but should be.
+                  $output = "Suspend: Workday User " + $workdayUser.staffID + " (" +  $workdayUser.displayName + ") matching gSuite user " + $gSuiteUser.employeeID + " (Display Name: " + $gSuiteUser.fullName + ", ID: " + $gSuiteUser.id + ") should be suspended in gSuite due to their Workday account being locked, but is not."
+                  Write-Output $output
+
+                  $confirmOutput = 'Update-GSUser -User ' + $gSuiteUser.user + ' -Suspended:$true'
+                  If ($PSCmdlet.ShouldProcess($gSuiteUser.User,$confirmOutput)) {
+                    $returnObj = Update-GSUser -User $gSuiteUser.User -Suspended:$true -Confirm:$false -ErrorVariable errorOutput
+                    if($errorOutput){$errors += $errorOutput}
+                    $recordChanges += 1
+                  }
+                }
+ 
+              }elseif($gSuiteUser.CustomSchemas.wusa_custom_attributes.account_expire_date -And ((Get-Date) -ge ([datetime]::parseexact($gSuiteUser.CustomSchemas.wusa_custom_attributes.account_expire_date, 'yyyy-MM-dd', $null)))){
+                #The account_expire_date is set and the current date is greater than or equal to the expire date.
+                #We should disable the account now.
+                #This user isn't suspended in gSuite, but should be.
+                $output = "Suspend: Workday User " + $workdayUser.staffID + " (" +  $workdayUser.displayName + ") matching gSuite user " + $gSuiteUser.employeeID + " (Display Name: " + $gSuiteUser.fullName + ", ID: " + $gSuiteUser.id + ") should be suspended in gSuite due to their Workday account being locked, but is not."
+                Write-Output $output
+
+                $confirmOutput = 'Update-GSUser -User ' + $gSuiteUser.user + ' -Suspended:$true'
+                If ($PSCmdlet.ShouldProcess($gSuiteUser.User,$confirmOutput)) {
+                  $returnObj = Update-GSUser -User $gSuiteUser.User -Suspended:$true -Confirm:$false -ErrorVariable errorOutput
+                  if($errorOutput){$errors += $errorOutput}
+                  $recordChanges += 1
+                }
+              }else{
+                #The account_expire_date is not set.
+                #This user isn't suspended in gSuite, but should be.
+                $output = "Suspend: Workday User " + $workdayUser.staffID + " (" +  $workdayUser.displayName + ") matching gSuite user " + $gSuiteUser.employeeID + " (Display Name: " + $gSuiteUser.fullName + ", ID: " + $gSuiteUser.id + ") should be suspended in gSuite due to their Workday account being locked, but is not."
+                Write-Output $output
+
+                $confirmOutput = 'Update-GSUser -User ' + $gSuiteUser.user + ' -Suspended:$true'
+                If ($PSCmdlet.ShouldProcess($gSuiteUser.User,$confirmOutput)) {
+                  $returnObj = Update-GSUser -User $gSuiteUser.User -Suspended:$true -Confirm:$false -ErrorVariable errorOutput
+                  if($errorOutput){$errors += $errorOutput}
+                  $recordChanges += 1
+                }
               }
             }
           }Else{
@@ -337,9 +377,47 @@ ForEach ($key in $gSuiteUsers.keys){
     #If the user has the 'workday_managed = no' attribute, we won't manage the account.
     if ($gSuiteUser.CustomSchemas.wusa_custom_attributes.workday_managed -ne $False){
 
+
       #Determine if the account expire date is set.  For surviving spouces or other reasons, We may want to keep the account open for a period of time even if the user no longer shows up in the workday report.
       # If not set than continue Or if set and the expire date has passed, continue.
-      if (!($gSuiteUser.CustomSchemas.wusa_custom_attributes.account_expire_date) -Or ((Get-Date) -gt ([datetime]::parseexact($gSuiteUser.CustomSchemas.wusa_custom_attributes.account_expire_date, 'yyyy-MM-dd', $null)))){
+      if ($gSuiteUser.CustomSchemas.wusa_custom_attributes.account_expire_date -And ((Get-Date) -lt ([datetime]::parseexact($gSuiteUser.CustomSchemas.wusa_custom_attributes.account_expire_date, 'yyyy-MM-dd', $null)))){
+        #The account_expire_date is set and the current date is less than the expire date.
+
+        #Determine if force_account_active_until_expire is set.
+        if ($gSuiteUser.CustomSchemas.wusa_custom_attributes.force_account_active_until_expire){
+          #force_account_active_until_expire is set, so we should NOT deactivate this account.
+        }else{
+          #force_account_active_until_expire is not set and since the account is not present in workday, it should be suspended/moved here.
+
+          #Determine if account deactivation is necessary.
+          if (!($gSuiteUser.Suspended)){
+            #The gSuite account not locked, but it should be.
+            $output = "Disable - Suspend: GSuite user " + $gSuiteUser.employeeID + " (Display Name: " + $gSuiteUser.fullName + ", ID: " + $gSuiteUser.id + ") should be suspended in gSuite, but is not. Reason: Account not found in Workday."
+            Write-Output $output
+
+            $confirmOutput = 'Update-GSUser -User ' + $gSuiteUser.user + ' -Suspended:$true'
+            If ($PSCmdlet.ShouldProcess($gSuiteUser.User,$confirmOutput)) {
+              $returnObj = Update-GSUser -User $gSuiteUser.User -Suspended:$true -Confirm:$false -ErrorVariable errorOutput
+              if($errorOutput){$errors += $errorOutput}
+              $recordChanges += 1
+            }
+          }
+
+          #Determine if account move is necessary.
+          if (!($gSuiteUser.orgUnitPath -like "/disabled users*")){
+            $output = "Disable - Move: GSuite user " + $gSuiteUser.employeeID + " (Display Name: " + $gSuiteUser.fullName + ", ID: " + $gSuiteUser.id + ") should be moved to '/disabled users' OU in gSuite. Reason: Account not found in workday."
+            Write-Output $output
+
+            $confirmOutput = 'Update-GSUser -User ' + $gSuiteUser.user + " -OrgUnitPath: '/disabled users'"
+            If ($PSCmdlet.ShouldProcess($gSuiteUser.User,$confirmOutput)) {
+              $returnObj = Update-GSUser -User $gSuiteUser.User -OrgUnitPath '/disabled users' -Confirm:$false -ErrorVariable errorOutput
+              if($errorOutput){$errors += $errorOutput}
+              $recordChanges += 1
+            }
+          }
+        }
+      }elseif($gSuiteUser.CustomSchemas.wusa_custom_attributes.account_expire_date -And ((Get-Date) -ge ([datetime]::parseexact($gSuiteUser.CustomSchemas.wusa_custom_attributes.account_expire_date, 'yyyy-MM-dd', $null)))){
+        #The account_expire_date is set and the current date is greater than or equal to the expire date.
 
         #Determine if account deactivation is necessary.
         if (!($gSuiteUser.Suspended)){
@@ -367,6 +445,41 @@ ForEach ($key in $gSuiteUsers.keys){
             $recordChanges += 1
           }
         }
+      }else{
+        #The account_expire_date is not set.
+        #Determine if account deactivation is necessary.
+        if (!($gSuiteUser.Suspended)){
+          #The gSuite account not locked, but it should be.
+          $output = "Disable - Suspend: GSuite user " + $gSuiteUser.employeeID + " (Display Name: " + $gSuiteUser.fullName + ", ID: " + $gSuiteUser.id + ") should be suspended in gSuite, but is not. Reason: Account not found in Workday."
+          Write-Output $output
+
+          $confirmOutput = 'Update-GSUser -User ' + $gSuiteUser.user + ' -Suspended:$true'
+          If ($PSCmdlet.ShouldProcess($gSuiteUser.User,$confirmOutput)) {
+            $returnObj = Update-GSUser -User $gSuiteUser.User -Suspended:$true -Confirm:$false -ErrorVariable errorOutput
+            if($errorOutput){$errors += $errorOutput}
+            $recordChanges += 1
+          }
+        }
+
+        #Determine if account move is necessary.
+        if (!($gSuiteUser.orgUnitPath -like "/disabled users*")){
+          $output = "Disable - Move: GSuite user " + $gSuiteUser.employeeID + " (Display Name: " + $gSuiteUser.fullName + ", ID: " + $gSuiteUser.id + ") should be moved to '/disabled users' OU in gSuite. Reason: Account not found in workday."
+          Write-Output $output
+
+          $confirmOutput = 'Update-GSUser -User ' + $gSuiteUser.user + " -OrgUnitPath: '/disabled users'"
+          If ($PSCmdlet.ShouldProcess($gSuiteUser.User,$confirmOutput)) {
+            $returnObj = Update-GSUser -User $gSuiteUser.User -OrgUnitPath '/disabled users' -Confirm:$false -ErrorVariable errorOutput
+            if($errorOutput){$errors += $errorOutput}
+            $recordChanges += 1
+          }
+        }
+      }
+    }else{
+      #The user has the 'workday_managed' field set no, or False so we won't manage it.
+      #However, we still want to warn about accounts that are past their expiration date.
+      if (($gSuiteUser.CustomSchemas.wusa_custom_attributes.account_expire_date) -And ((Get-Date) -gt ([datetime]::parseexact($gSuiteUser.CustomSchemas.wusa_custom_attributes.account_expire_date, 'yyyy-MM-dd', $null)))){
+        $output = "Warning: GSuite user " + $gSuiteUser.employeeID + " (Display Name: " + $gSuiteUser.fullName + ", ID: " + $gSuiteUser.id + ") should be suspended in gSuite based on their account_expire_date, but will NOT be, because their account's workday_managed field is set to No."
+        Write-Output $output
       }
     }
   }
