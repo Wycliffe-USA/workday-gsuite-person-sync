@@ -74,7 +74,7 @@ $workdayCreds = New-Object System.Management.Automation.PSCredential ($workdayRp
 $workdayRestResponse = Invoke-RestMethod -Credential $workdayCreds -Uri $workdayRptUri -ErrorVariable errorOutput
 
 #Error handling in case the workday response is blank or has too few entries.
-if (($errorOutput) -Or !($workdayRestResponse) -Or (($workdayRestResponse.Report_Entry|Measure-Object).Count -lt 1000)){Write-Error "Workday-LDAP-Person-Sync Error: Got less than 1000 results from Workday or an error occurred.  Possible source data issue." ; exit 1}
+if (($errorOutput) -Or !($workdayRestResponse) -Or (($workdayRestResponse.Report_Entry|Measure-Object).Count -lt 1000)){Write-Error "Workday-GSuite-Person-Sync Error: Got less than 1000 results from Workday or an error occurred.  Possible source data issue." ; exit 1}
 
 ###
 #Save workdayresponse entries into workdayUsers array.
