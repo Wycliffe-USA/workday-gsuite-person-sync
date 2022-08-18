@@ -1,5 +1,5 @@
 # Workday to gSuite Person Sync
-# V 1.4
+# V 1.6
 
 Synchronizes users from Workday to gSuite.  Responsible for new account creation, account information updates, and account deactivations.
 
@@ -7,9 +7,14 @@ Synchronizes users from Workday to gSuite.  Responsible for new account creation
 
 This project is designed to run in a Linux docker container.  It utilizes the powershell language and powershell (core) command line interpreter.
 
-An example of how to run the script is: (see prerequisites first)
+An example of how to run the script is: (see prerequisites and build instructions first)
 ```
-docker run -it -e workdayRptUsr='ISU_gSuite' -e workdayRptPwd='{Insert_Password}' -e workdayRptUri='https://services1.myworkday.com/ccx/service/customreport2/wycliffe/DAVE_GUELL/CRX_-_Workday-gSuite-Sync?format=json' -v c:\path\to\config:/config dockerhub.wycliffe.org:5000/workday-gsuite-person-sync:latest -Confirm
+docker run -e workdayRptUsr='ISU_gSuite_Sync_USA' -e workdayRptPwd='{Insert_Password}' -e workdayRptUri='https://services1.myworkday.com/ccx/service/customreport2/wycliffe/ISU_gSuite_Sync_USA/CRX_-_Workday-gSuite-Sync?format=json' -v c:\path\to\config:/config dockerhub.wycliffe.org:5000/workday-gsuite-person-sync:latest -Confirm
+```
+
+You can also enter the container by using `pwsh` at the end, and then running `./sync.ps1 -Confirm` at the command line.
+```
+docker run -it -e workdayRptUsr='ISU_gSuite_Sync_USA' -e workdayRptPwd='{Insert_Password}' -e workdayRptUri='https://services1.myworkday.com/ccx/service/customreport2/wycliffe/ISU_gSuite_Sync_USA/CRX_-_Workday-gSuite-Sync?format=json' -v c:\path\to\config:/config dockerhub.wycliffe.org:5000/workday-gsuite-person-sync:latest pwsh
 ```
 Other options can be overridden by passing them on the command prompt.
 
@@ -25,7 +30,7 @@ Once you have a working configuration, copy the configuration file generated fro
 `cp '/root/.config/powershell/SCRT HQ/PSGSuite/Configuration.psd1' /config/`
 
 ## Building and storing the docker image:
-The container runs from an image that is build and stored in the local docker hub repository.
+The container runs from an image that is build and stored in the local docker hub repository or built on your local computer.
 ### Build
 ```
 cd [this directory]
