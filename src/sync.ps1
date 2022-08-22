@@ -218,25 +218,42 @@ ForEach ($key in $workdayUsers.keys){
               }
             }
           }Else{
-            #The workday account is not locked. The gSuite user should be not be suspended if it is.
-            if ($gSuiteUser.Suspended){
-              #This user is suspended in gSuite, but should not be.
-              
-              #Sometimes Google will suspend an account for suspicious activity.  Unfortunately they don't put any detail of that in the account's `SuspensionReason` field which is blank in that senario.
-              # However, normally the `SuspensionReason` field would say 'ADMIN' if it were suspended by this script or another admin.
-              # If the `SuspensionReason` is blank, we will NOT proceed with unlocking the account due to the suspicious activity but instead warn.
-              if (!($gSuiteUser.SuspensionReason)){
-                $output = "Cannot Enable: Workday User " + $workdayUser.staffID + " (" +  $workdayUser.displayName + ")'s account is suspended, but shouldn't be.  However, there is no suspension reason given.  This can be indicative of an automatic suspension by google for suspicious activity."
-                Write-Warning $output
-              }else{
-                $output = "Enable: Workday User " + $workdayUser.staffID + " (" +  $workdayUser.displayName + ") matching gSuite user " + $gSuiteUser.employeeID + " (Display Name: " + $gSuiteUser.fullName + ", ID: " + $gSuiteUser.id + ") should not be suspended in gSuite, but it is."
+            #The workday account is not locked. The gSuite user should be not be suspended if it is unless the
+            #account_expire_date is passed
+            If (($gSuiteUser.CustomSchemas.wusa_custom_attributes.account_expire_date) -And ((Get-Date) -gt ([datetime]::parseexact($gSuiteUser.CustomSchemas.wusa_custom_attributes.account_expire_date, 'yyyy-MM-dd', $null)))){
+              #Determine if account deactivation is necessary.
+              if (!($gSuiteUser.Suspended)){
+                #The gSuite account not locked, but it should be.
+                $output = "Disable - Suspend: GSuite user " + $gSuiteUser.employeeID + " (Display Name: " + $gSuiteUser.fullName + ", ID: " + $gSuiteUser.id + ") should be suspended in gSuite, but is not. Reason: Account expire date set in Google."
                 Write-Output $output
-
-                $confirmOutput = 'Update-GSUser -User ' + $gSuiteUser.user + ' -Suspended:$false'
+      
+                $confirmOutput = 'Update-GSUser -User ' + $gSuiteUser.user + ' -Suspended:$true'
                 If ($PSCmdlet.ShouldProcess($gSuiteUser.User,$confirmOutput)) {
-                  $returnObj = Update-GSUser -User $gSuiteUser.User -Suspended:$false -Confirm:$false -ErrorVariable errorOutput
+                  $returnObj = Update-GSUser -User $gSuiteUser.User -Suspended:$true -Confirm:$false -ErrorVariable errorOutput
                   if($errorOutput){$errors += $errorOutput}
                   $recordChanges += 1
+                }
+              }
+            }else{
+              if ($gSuiteUser.Suspended){
+                #This user is suspended in gSuite, but should not be.
+                
+                #Sometimes Google will suspend an account for suspicious activity.  Unfortunately they don't put any detail of that in the account's `SuspensionReason` field which is blank in that senario.
+                # However, normally the `SuspensionReason` field would say 'ADMIN' if it were suspended by this script or another admin.
+                # If the `SuspensionReason` is blank, we will NOT proceed with unlocking the account due to the suspicious activity but instead warn.
+                if (!($gSuiteUser.SuspensionReason)){
+                  $output = "Cannot Enable: Workday User " + $workdayUser.staffID + " (" +  $workdayUser.displayName + ")'s account is suspended, but shouldn't be.  However, there is no suspension reason given.  This can be indicative of an automatic suspension by google for suspicious activity."
+                  Write-Warning $output
+                }else{
+                  $output = "Enable: Workday User " + $workdayUser.staffID + " (" +  $workdayUser.displayName + ") matching gSuite user " + $gSuiteUser.employeeID + " (Display Name: " + $gSuiteUser.fullName + ", ID: " + $gSuiteUser.id + ") should not be suspended in gSuite, but it is."
+                  Write-Output $output
+  
+                  $confirmOutput = 'Update-GSUser -User ' + $gSuiteUser.user + ' -Suspended:$false'
+                  If ($PSCmdlet.ShouldProcess($gSuiteUser.User,$confirmOutput)) {
+                    $returnObj = Update-GSUser -User $gSuiteUser.User -Suspended:$false -Confirm:$false -ErrorVariable errorOutput
+                    if($errorOutput){$errors += $errorOutput}
+                    $recordChanges += 1
+                  }
                 }
               }
             }
