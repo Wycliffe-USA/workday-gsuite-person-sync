@@ -51,8 +51,10 @@ If(Get-Item "$configDir/Configuration.json" -ErrorAction SilentlyContinue){
 }
 
 write-output "workday Password: $workdayRptPwd"
+[Console]::Out.Flush()
 write-output "PSGsuite config:"
 get-content $configDir/Configuration.psd1
+[Console]::Out.Flush()
 
 ###^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^###
 #####################################################
