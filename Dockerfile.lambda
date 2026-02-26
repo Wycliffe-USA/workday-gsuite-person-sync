@@ -1,32 +1,11 @@
 # Lambda container image for Workday-GSuite sync.
-# Base: AWS Lambda provided (AL2023). PowerShell + AWS PowerShell Lambda runtime + PSGSuite.
+# Base: AWS Lambda provided (AL2023). PowerShell and PSGSuite installed on AL2023.
 # Sensitive data (workdayRptPwd, Configuration.psd1) is fetched from SSM at runtime by LambdaHandler.ps1.
 #
-# Uses aws-lambda-powershell-runtime bootstrap so lambda-entrypoint.sh receives exactly one handler arg
-# (format: script.ps1::function). The default ENTRYPOINT [/lambda-entrypoint.sh] is kept.
-FROM public.ecr.aws/lambda/provided:al2023 AS pwsh-runtime
-# Fetch PowerShell Lambda runtime (bootstrap + modules) - bootstrap expects /opt/powershell and /opt/modules
-RUN dnf install -y tar gzip libicu git-core && \
-    ARCH=$(uname -m) && \
-    case ${ARCH} in aarch64) TAR_ARCH=arm64 ;; x86_64) TAR_ARCH=x64 ;; *) TAR_ARCH=${ARCH} ;; esac && \
-    curl -sSL -o /tmp/powershell.tar.gz "https://github.com/PowerShell/PowerShell/releases/download/v7.4.10/powershell-7.4.10-linux-${TAR_ARCH}.tar.gz" && \
-    mkdir -p /opt/powershell && \
-    tar -xzf /tmp/powershell.tar.gz -C /opt/powershell && \
-    chmod +x /opt/powershell/pwsh && \
-    rm /tmp/powershell.tar.gz && \
-    git clone --depth 1 https://github.com/awslabs/aws-lambda-powershell-runtime /tmp/aws-lambda-powershell-runtime
-ARG RUNTIME_DIR=/tmp/aws-lambda-powershell-runtime/powershell-runtime/source
-RUN cp $RUNTIME_DIR/bootstrap /var/runtime && \
-    cp $RUNTIME_DIR/PowerShellLambdaContext.cs /opt/ && \
-    mkdir -p /opt/modules && \
-    cp -r $RUNTIME_DIR/modules/* /opt/modules/ && \
-    chmod +x /var/runtime/bootstrap && \
-    cd /opt/modules/Private && tail -n +3 -q *.ps1 >> /opt/modules/pwsh-runtime.psm1 && rm -rf /opt/modules/Private && \
-    rm -rf /tmp/aws-lambda-powershell-runtime && \
-    dnf clean all
-
-# App stage: PSGSuite + AWS.Tools.SSM + our scripts
+# Multi-stage: install PowerShell + modules on full AL2023 (has dnf), then copy into minimal Lambda base.
 FROM public.ecr.aws/amazonlinux/amazonlinux:2023 AS app
+
+# PowerShell: use tar.gz (avoids RPM dependency mismatches with AL2023)
 ARG PS_VERSION=7.4.10
 RUN dnf install -y tar gzip libicu && \
     ARCH=$(uname -m) && \
@@ -35,34 +14,40 @@ RUN dnf install -y tar gzip libicu && \
     mkdir -p /opt/microsoft/powershell/7 && \
     tar -xzf /tmp/powershell.tar.gz -C /opt/microsoft/powershell/7 && \
     chmod +x /opt/microsoft/powershell/7/pwsh && \
-    ln -sf /opt/microsoft/powershell/7/pwsh /usr/bin/pwsh && \
     rm /tmp/powershell.tar.gz && \
+    ln -sf /opt/microsoft/powershell/7/pwsh /usr/bin/pwsh && \
     dnf clean all
+
+# Install PSGSuite and AWS Tools for SSM (AllUsers so modules land in /usr/local, copied to final image)
 RUN pwsh -NoProfile -Command ' \
     $ErrorActionPreference = "Stop"; $ProgressPreference = "SilentlyContinue"; \
     Install-Module -Name PSGSuite -RequiredVersion 2.36.4 -Force -Scope AllUsers; \
     Install-Module -Name AWS.Tools.SimpleSystemsManagement -Force -Scope AllUsers \
 '
+
+# Copy sync scripts
 COPY src/LambdaHandler.ps1 src/sync.ps1 /var/task/
 WORKDIR /var/task
 
-# Final image
+# Final image: Lambda provided (AL2023) with our app
 FROM public.ecr.aws/lambda/provided:al2023
-COPY --from=pwsh-runtime /var/runtime/bootstrap /var/runtime/bootstrap
-COPY --from=pwsh-runtime /opt/ /opt/
+
+# Copy PowerShell and modules from app stage
 COPY --from=app /opt/microsoft /opt/microsoft
 COPY --from=app /usr/local/share/powershell/Modules /usr/local/share/powershell/Modules
 COPY --from=app /var/task /var/task
 
+# Ensure PowerShell dependencies (minimal image may lack some; openssl-libs conflicts, skip)
 RUN microdnf install -y libicu && microdnf clean all
 
 ENV LAMBDA_TASK_ROOT=/var/task
-ENV PATH="/opt/powershell:/opt/microsoft/powershell/7:/usr/local/bin:/usr/bin:/bin:$PATH"
-ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
+ENV PATH="/opt/microsoft/powershell/7:/usr/local/bin:/usr/bin:/bin:/var/lang/bin:/opt/bin:$PATH"
 
+# Ensure /config exists (handler writes Configuration.psd1 here at runtime)
 RUN mkdir -p /config
+
+# Suppress PSGSuite CoreCLR DPAPI encryption warning (creates ~/.scrthq/BlockCoreCLREncryptionWarning.txt)
 RUN pwsh -NoProfile -Command 'Import-Module PSGSuite; Block-CoreCLREncryptionWarning'
 
-# Keep default ENTRYPOINT [/lambda-entrypoint.sh]. CMD must be a single handler (script::function).
-# lambda-entrypoint expects exactly one argument: the handler name.
-CMD ["LambdaHandler.ps1::handler"]
+# Provided image already sets ENTRYPOINT to lambda-entrypoint.sh
+CMD ["pwsh", "-NoProfile", "-File", "/var/task/LambdaHandler.ps1"]
