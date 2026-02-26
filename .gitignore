@@ -2,8 +2,12 @@
 # Exclude packaged modules
 *.zip
 
-# Exclude .p12 files.
+# Exclude .p12 files (store key material in Parameter Store; use Configuration.psd1 content there)
 *.p12
 
-# Exclude configuration file
+# Exclude PSGSuite config (store content in Parameter Store as PSGSUITE_CONFIG_PARAM_NAME)
+Configuration.psd1
+config/Configuration.psd1
 configuration.*
+files/foo-1.pem
+files/KeyStore.jks

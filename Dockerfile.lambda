@@ -1,0 +1,53 @@
+# Lambda container image for Workday-GSuite sync.
+# Base: AWS Lambda provided (AL2023). PowerShell and PSGSuite installed on AL2023.
+# Sensitive data (workdayRptPwd, Configuration.psd1) is fetched from SSM at runtime by LambdaHandler.ps1.
+#
+# Multi-stage: install PowerShell + modules on full AL2023 (has dnf), then copy into minimal Lambda base.
+FROM public.ecr.aws/amazonlinux/amazonlinux:2023 AS app
+
+# PowerShell: use tar.gz (avoids RPM dependency mismatches with AL2023)
+ARG PS_VERSION=7.4.10
+RUN dnf install -y tar gzip libicu && \
+    ARCH=$(uname -m) && \
+    case ${ARCH} in aarch64) TAR_ARCH=arm64 ;; x86_64) TAR_ARCH=x64 ;; *) TAR_ARCH=${ARCH} ;; esac && \
+    curl -sSL -o /tmp/powershell.tar.gz "https://github.com/PowerShell/PowerShell/releases/download/v${PS_VERSION}/powershell-${PS_VERSION}-linux-${TAR_ARCH}.tar.gz" && \
+    mkdir -p /opt/microsoft/powershell/7 && \
+    tar -xzf /tmp/powershell.tar.gz -C /opt/microsoft/powershell/7 && \
+    chmod +x /opt/microsoft/powershell/7/pwsh && \
+    rm /tmp/powershell.tar.gz && \
+    ln -sf /opt/microsoft/powershell/7/pwsh /usr/bin/pwsh && \
+    dnf clean all
+
+# Install PSGSuite and AWS Tools for SSM (AllUsers so modules land in /usr/local, copied to final image)
+RUN pwsh -NoProfile -Command ' \
+    $ErrorActionPreference = "Stop"; $ProgressPreference = "SilentlyContinue"; \
+    Install-Module -Name PSGSuite -RequiredVersion 2.36.4 -Force -Scope AllUsers; \
+    Install-Module -Name AWS.Tools.SimpleSystemsManagement -Force -Scope AllUsers \
+'
+
+# Copy sync scripts
+COPY src/LambdaHandler.ps1 src/sync.ps1 /var/task/
+WORKDIR /var/task
+
+# Final image: Lambda provided (AL2023) with our app
+FROM public.ecr.aws/lambda/provided:al2023
+
+# Copy PowerShell and modules from app stage
+COPY --from=app /opt/microsoft /opt/microsoft
+COPY --from=app /usr/local/share/powershell/Modules /usr/local/share/powershell/Modules
+COPY --from=app /var/task /var/task
+
+# Ensure PowerShell dependencies (minimal image may lack some; openssl-libs conflicts, skip)
+RUN microdnf install -y libicu && microdnf clean all
+
+ENV LAMBDA_TASK_ROOT=/var/task
+ENV PATH="/opt/microsoft/powershell/7:/usr/local/bin:/usr/bin:/bin:/var/lang/bin:/opt/bin:$PATH"
+
+# Ensure /config exists (handler writes Configuration.psd1 here at runtime)
+RUN mkdir -p /config
+
+# Suppress PSGSuite CoreCLR DPAPI encryption warning (creates ~/.scrthq/BlockCoreCLREncryptionWarning.txt)
+RUN pwsh -NoProfile -Command 'Import-Module PSGSuite; Block-CoreCLREncryptionWarning'
+
+# Provided image already sets ENTRYPOINT to lambda-entrypoint.sh
+CMD ["pwsh", "-NoProfile", "-File", "/var/task/LambdaHandler.ps1"]

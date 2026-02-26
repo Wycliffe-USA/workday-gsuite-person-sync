@@ -1,0 +1,50 @@
+# Build Lambda container image and push to ECR.
+# Requires: AWS credentials (OIDC or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY).
+# ECR repository must exist (create via Terraform first).
+
+name: Build and Push to ECR
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'src/**'
+      - 'Dockerfile.lambda'
+      - '.github/workflows/build-and-push.yml'
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY_NAME || 'workday-gsuite-person-sync-prod' }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # For OIDC, if used
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+        # Alternative: Use OIDC (recommended for production). Add secrets.AWS_ROLE_ARN_TO_ASSUME
+        # and replace with: role-to-assume: ${{ secrets.AWS_ROLE_ARN_TO_ASSUME }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest -f Dockerfile.lambda .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:latest $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
