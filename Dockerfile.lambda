@@ -49,5 +49,5 @@ RUN mkdir -p /config
 # Suppress PSGSuite CoreCLR DPAPI encryption warning (creates ~/.scrthq/BlockCoreCLREncryptionWarning.txt)
 RUN pwsh -NoProfile -Command 'Import-Module PSGSuite; Block-CoreCLREncryptionWarning'
 
-# Provided image already sets ENTRYPOINT to lambda-entrypoint.sh
-CMD ["pwsh", "-NoProfile", "-File", "/var/task/LambdaHandler.ps1"]
+# Explicitly pass handler as first arg to lambda-entrypoint.sh (required by provided runtime)
+ENTRYPOINT ["/lambda-entrypoint.sh", "pwsh", "-NoProfile", "-File", "/var/task/LambdaHandler.ps1"]
