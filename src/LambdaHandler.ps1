@@ -38,9 +38,12 @@ function handler {
 
     try {
         $configParam = Get-SSMParameter -Name $configParamName -WithDecryption $true
-        $configDir = '/config'
+        $configDir = '/tmp/config'
         New-Item -ItemType Directory -Path $configDir -Force | Out-Null
         $configParam.Value | Set-Content -Path (Join-Path $configDir 'Configuration.psd1') -Encoding utf8
+        $env:PSGSUITE_CONFIG_DIR = $configDir
+        $env:PSGSUITE_HOME = '/tmp/.config/powershell/SCRT HQ/PSGSuite'
+        $env:HOME = '/tmp'
     } catch {
         throw "Failed to retrieve or write PSGSuite config from SSM parameter '$configParamName': $_"
     }

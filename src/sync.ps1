@@ -38,14 +38,16 @@ $workdayUsers = @{}
 # The PSGSuite module requires a configuration file to be set up.
 #  This is setup with the p12 file from Google and some configuration variables, then exported into json so we can import it.
 #  Here, you can mount the json file inside the container at /config or take a pre-configured Configuration.psd1 file available inside the same folder
-#  and place it inside the /config file instead.
+#  and place it inside the /config file instead. Lambda uses /tmp/config (writable); set PSGSUITE_CONFIG_DIR to override.
 #  See https://github.com/scrthq/PSGSuite/wiki/Set-PSGSuiteConfig for more information.
-If(Get-Item /config/Configuration.json -ErrorAction SilentlyContinue){
-  If (!(Get-Item '/root/.config/powershell/SCRT HQ/PSGSuite' -ErrorAction SilentlyContinue)){mkdir -p '/root/.config/powershell/SCRT HQ/PSGSuite'}
-  import-psgsuiteconfig -Path /config/Configuration.json
-}ElseIf(Get-Item /config/Configuration.psd1 -ErrorAction SilentlyContinue){
-  If (!(Get-Item '/root/.config/powershell/SCRT HQ/PSGSuite/Configuration.psd1' -ErrorAction SilentlyContinue)){mkdir -p '/root/.config/powershell/SCRT HQ/PSGSuite'}
-  cp /config/Configuration.psd1 /root/.config/powershell/'SCRT HQ'/PSGSuite/Configuration.psd1
+$configDir = if ($env:PSGSUITE_CONFIG_DIR) { $env:PSGSUITE_CONFIG_DIR } else { '/config' }
+$psgsuiteHome = if ($env:PSGSUITE_HOME) { $env:PSGSUITE_HOME } else { '/root/.config/powershell/SCRT HQ/PSGSuite' }
+If(Get-Item "$configDir/Configuration.json" -ErrorAction SilentlyContinue){
+  If (!(Get-Item $psgsuiteHome -ErrorAction SilentlyContinue)){mkdir -p $psgsuiteHome}
+  import-psgsuiteconfig -Path "$configDir/Configuration.json"
+}ElseIf(Get-Item "$configDir/Configuration.psd1" -ErrorAction SilentlyContinue){
+  If (!(Get-Item $psgsuiteHome -ErrorAction SilentlyContinue)){mkdir -p $psgsuiteHome}
+  cp "$configDir/Configuration.psd1" (Join-Path $psgsuiteHome 'Configuration.psd1')
 }
 
 ###^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^###
