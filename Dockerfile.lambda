@@ -51,8 +51,11 @@ FROM public.ecr.aws/lambda/provided:al2023
 COPY --from=pwsh-runtime /var/runtime/bootstrap /var/runtime/bootstrap
 COPY --from=pwsh-runtime /opt/ /opt/
 COPY --from=app /opt/microsoft /opt/microsoft
-COPY --from=app /usr/local/share/powershell/Modules /usr/local/share/powershell/Modules
 COPY --from=app /var/task /var/task
+# Bootstrap's Set-PSModulePath only uses /opt/modules, /opt/powershell/modules, /var/task/modules.
+# Copy our modules (PSGSuite, AWS.Tools.*) into /opt/modules so they are discoverable.
+COPY --from=app /usr/local/share/powershell/Modules /tmp/app-modules
+RUN cp -r /tmp/app-modules/* /opt/modules/ && rm -rf /tmp/app-modules
 
 RUN microdnf install -y libicu && microdnf clean all
 
@@ -61,7 +64,8 @@ ENV PATH="/opt/powershell:/opt/microsoft/powershell/7:/usr/local/bin:/usr/bin:/b
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 
 RUN mkdir -p /config
-RUN pwsh -NoProfile -Command 'Import-Module PSGSuite; Block-CoreCLREncryptionWarning'
+# PSModulePath is only set by Lambda bootstrap at runtime; set it for build-time module load.
+RUN pwsh -NoProfile -Command '$env:PSModulePath = "/opt/modules:" + $env:PSModulePath; Import-Module PSGSuite; Block-CoreCLREncryptionWarning'
 
 # Keep default ENTRYPOINT [/lambda-entrypoint.sh]. CMD must be a single handler (script::function).
 # lambda-entrypoint expects exactly one argument: the handler name.
