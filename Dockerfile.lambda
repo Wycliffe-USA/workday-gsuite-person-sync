@@ -1,73 +1,33 @@
-# Lambda container image for Workday-GSuite sync.
-# Base: AWS Lambda provided (AL2023). PowerShell + AWS PowerShell Lambda runtime + PSGSuite.
-# Sensitive data: workdayRptPwd from SSM, Configuration.psd1 from Secrets Manager (64KB limit).
-#
-# Uses aws-lambda-powershell-runtime bootstrap so lambda-entrypoint.sh receives exactly one handler arg
-# (format: script.ps1::function). The default ENTRYPOINT [/lambda-entrypoint.sh] is kept.
-FROM public.ecr.aws/lambda/provided:al2023 AS pwsh-runtime
-# Fetch PowerShell Lambda runtime (bootstrap + modules) - bootstrap expects /opt/powershell and /opt/modules
-RUN dnf install -y tar gzip libicu git-core && \
-    ARCH=$(uname -m) && \
-    case ${ARCH} in aarch64) TAR_ARCH=arm64 ;; x86_64) TAR_ARCH=x64 ;; *) TAR_ARCH=${ARCH} ;; esac && \
-    curl -sSL -o /tmp/powershell.tar.gz "https://github.com/PowerShell/PowerShell/releases/download/v7.4.10/powershell-7.4.10-linux-${TAR_ARCH}.tar.gz" && \
-    mkdir -p /opt/powershell && \
-    tar -xzf /tmp/powershell.tar.gz -C /opt/powershell && \
-    chmod +x /opt/powershell/pwsh && \
-    rm /tmp/powershell.tar.gz && \
-    git clone --depth 1 https://github.com/awslabs/aws-lambda-powershell-runtime /tmp/aws-lambda-powershell-runtime
-ARG RUNTIME_DIR=/tmp/aws-lambda-powershell-runtime/powershell-runtime/source
-RUN cp $RUNTIME_DIR/bootstrap /var/runtime && \
-    cp $RUNTIME_DIR/PowerShellLambdaContext.cs /opt/ && \
-    mkdir -p /opt/modules && \
-    cp -r $RUNTIME_DIR/modules/* /opt/modules/ && \
-    chmod +x /var/runtime/bootstrap && \
-    cd /opt/modules/Private && tail -n +3 -q *.ps1 >> /opt/modules/pwsh-runtime.psm1 && rm -rf /opt/modules/Private && \
-    rm -rf /tmp/aws-lambda-powershell-runtime && \
-    dnf clean all
+FROM mcr.microsoft.com/powershell:ubuntu-22.04
 
-# App stage: PSGSuite + AWS.Tools.SSM + AWS.Tools.SecretsManager + our scripts
-FROM public.ecr.aws/amazonlinux/amazonlinux:2023 AS app
-ARG PS_VERSION=7.4.10
-RUN dnf install -y tar gzip libicu && \
-    ARCH=$(uname -m) && \
-    case ${ARCH} in aarch64) TAR_ARCH=arm64 ;; x86_64) TAR_ARCH=x64 ;; *) TAR_ARCH=${ARCH} ;; esac && \
-    curl -sSL -o /tmp/powershell.tar.gz "https://github.com/PowerShell/PowerShell/releases/download/v${PS_VERSION}/powershell-${PS_VERSION}-linux-${TAR_ARCH}.tar.gz" && \
-    mkdir -p /opt/microsoft/powershell/7 && \
-    tar -xzf /tmp/powershell.tar.gz -C /opt/microsoft/powershell/7 && \
-    chmod +x /opt/microsoft/powershell/7/pwsh && \
-    ln -sf /opt/microsoft/powershell/7/pwsh /usr/bin/pwsh && \
-    rm /tmp/powershell.tar.gz && \
-    dnf clean all
-RUN pwsh -NoProfile -Command ' \
-    $ErrorActionPreference = "Stop"; $ProgressPreference = "SilentlyContinue"; \
+# Minimal Lambda custom runtime pieces for PowerShell:
+# - /var/runtime/bootstrap
+# - /opt/modules/pwsh-runtime.*
+# - /opt/PowerShellLambdaContext.cs
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/* && \
+    git clone --depth 1 https://github.com/awslabs/aws-lambda-powershell-runtime /tmp/aws-lambda-powershell-runtime && \
+    mkdir -p /var/runtime /opt/modules /opt/powershell /var/task && \
+    cp /tmp/aws-lambda-powershell-runtime/powershell-runtime/source/bootstrap /var/runtime/bootstrap && \
+    cp /tmp/aws-lambda-powershell-runtime/powershell-runtime/source/PowerShellLambdaContext.cs /opt/PowerShellLambdaContext.cs && \
+    cp -r /tmp/aws-lambda-powershell-runtime/powershell-runtime/source/modules/* /opt/modules/ && \
+    chmod +x /var/runtime/bootstrap && \
+    ln -sf /usr/bin/pwsh /opt/powershell/pwsh && \
+    rm -rf /tmp/aws-lambda-powershell-runtime
+
+# Runtime-loaded modules must live under /opt/modules for this bootstrap.
+RUN pwsh -NoProfile -Command " \
+    \$ErrorActionPreference = 'Stop'; \
+    \$ProgressPreference = 'SilentlyContinue'; \
     Install-Module -Name PSGSuite -RequiredVersion 2.36.4 -Force -Scope AllUsers; \
     Install-Module -Name AWS.Tools.SimpleSystemsManagement -Force -Scope AllUsers; \
-    Install-Module -Name AWS.Tools.SecretsManager -Force -Scope AllUsers \
-'
+    Install-Module -Name AWS.Tools.SecretsManager -Force -Scope AllUsers; \
+    Copy-Item -Path /usr/local/share/powershell/Modules/* -Destination /opt/modules -Recurse -Force; \
+    Block-CoreCLREncryptionWarning \
+"
+
 COPY src/LambdaHandler.ps1 src/sync.ps1 /var/task/
 WORKDIR /var/task
 
-# Final image
-FROM public.ecr.aws/lambda/provided:al2023
-COPY --from=pwsh-runtime /var/runtime/bootstrap /var/runtime/bootstrap
-COPY --from=pwsh-runtime /opt/ /opt/
-COPY --from=app /opt/microsoft /opt/microsoft
-COPY --from=app /var/task /var/task
-# Bootstrap's Set-PSModulePath only uses /opt/modules, /opt/powershell/modules, /var/task/modules.
-# Copy our modules (PSGSuite, AWS.Tools.*) into /opt/modules so they are discoverable.
-COPY --from=app /usr/local/share/powershell/Modules /tmp/app-modules
-RUN cp -r /tmp/app-modules/* /opt/modules/ && rm -rf /tmp/app-modules
-
-RUN microdnf install -y libicu && microdnf clean all
-
-ENV LAMBDA_TASK_ROOT=/var/task
-ENV PATH="/opt/powershell:/opt/microsoft/powershell/7:/usr/local/bin:/usr/bin:/bin:$PATH"
-ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
-
-RUN mkdir -p /config
-# PSModulePath is only set by Lambda bootstrap at runtime; set it for build-time module load.
-RUN pwsh -NoProfile -Command '$env:PSModulePath = "/opt/modules:" + $env:PSModulePath; Import-Module PSGSuite; Block-CoreCLREncryptionWarning'
-
-# Keep default ENTRYPOINT [/lambda-entrypoint.sh]. CMD must be a single handler (script::function).
-# lambda-entrypoint expects exactly one argument: the handler name.
+# Lambda runtime passes this as _HANDLER and bootstrap invokes it.
+ENTRYPOINT ["/var/runtime/bootstrap"]
 CMD ["LambdaHandler.ps1::handler"]

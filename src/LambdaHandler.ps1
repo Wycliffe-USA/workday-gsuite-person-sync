@@ -39,11 +39,58 @@ function handler {
     try {
         $secret = Get-SECSecretValue -SecretId $configSecretName
         $configDir = '/tmp/config'
+        $psgsuiteHome = '/tmp/.config/powershell/SCRT HQ/PSGSuite'
         New-Item -ItemType Directory -Path $configDir -Force | Out-Null
-        $secret.SecretString | Set-Content -Path (Join-Path $configDir 'Configuration.psd1') -Encoding utf8
+        New-Item -ItemType Directory -Path $psgsuiteHome -Force | Out-Null
+        $configContent = $secret.SecretString
+        # Force-rewrite path-bearing fields regardless of spacing/quote style.
+        $configContent = [regex]::Replace(
+            $configContent,
+            '(?m)^\s*ConfigPath\s*=.*$',
+            "    ConfigPath = '$psgsuiteHome/Configuration.psd1'"
+        )
+        # Empty ClientSecrets can be interpreted as a file path by PSGSuite 2.x internals.
+        # Force to $null so no file path resolution is attempted.
+        $configContent = [regex]::Replace(
+            $configContent,
+            '(?m)^\s*ClientSecrets\s*=.*$',
+            '    ClientSecrets = $null'
+        )
+        $p12KeyPath = Join-Path $configDir 'service-account.p12'
+        if ($configContent -match '(?s)P12Key\s*=\s*@\((?<bytes>.*?)\)') {
+            $p12Bytes = $Matches['bytes'] -split ',' |
+                ForEach-Object { $_.Trim() } |
+                Where-Object { $_ -ne '' } |
+                ForEach-Object { [byte]$_ }
+            [System.IO.File]::WriteAllBytes($p12KeyPath, $p12Bytes)
+            $configContent = [regex]::Replace(
+                $configContent,
+                '(?m)^\s*P12KeyPath\s*=.*$',
+                "    P12KeyPath = '$p12KeyPath'"
+            )
+            if ($configContent -notmatch '(?m)^\s*P12KeyPath\s*=') {
+                $configContent = $configContent -replace '(?m)^\s*P12Key\s*=.*$', ("    P12KeyPath = '{0}'`n`$0" -f $p12KeyPath)
+            }
+        } else {
+            throw 'Configuration secret is missing P12Key byte array and no P12KeyPath was set.'
+        }
+        $stagedConfigPath = Join-Path $configDir 'Configuration.psd1'
+        $resolvedConfigPath = Join-Path $psgsuiteHome 'Configuration.psd1'
+        $configContent | Set-Content -Path $stagedConfigPath -Encoding utf8
+        $configContent | Set-Content -Path $resolvedConfigPath -Encoding utf8
         $env:PSGSUITE_CONFIG_DIR = $configDir
-        $env:PSGSUITE_HOME = '/tmp/.config/powershell/SCRT HQ/PSGSuite'
+        $env:PSGSUITE_HOME = $psgsuiteHome
         $env:HOME = '/tmp'
+        $env:USERPROFILE = '/tmp'
+        $env:XDG_CONFIG_HOME = '/tmp/.config'
+        $env:XDG_CONFIG_DIRS = '/tmp/.config:/etc/xdg'
+        # Configuration module uses automatic $HOME during import; set it explicitly for this runspace.
+        Set-Variable -Name HOME -Value '/tmp' -Scope Global -Force
+        New-Item -ItemType Directory -Path '/tmp/.config' -Force | Out-Null
+        New-Item -ItemType Directory -Path '/tmp/.local/share' -Force | Out-Null
+        # PSGSuite uses "~" paths during module import; ensure FileSystem provider home is set.
+        (Get-PSProvider 'FileSystem').Home = '/tmp'
+        Set-Location -Path '/tmp'
     } catch {
         throw "Failed to retrieve or write PSGSuite config from Secrets Manager secret '$configSecretName': $_"
     }
@@ -52,10 +99,23 @@ function handler {
     if (-not $env:workdayRptUsr) { throw 'Environment variable workdayRptUsr is required.' }
     if (-not $env:workdayRptUri) { throw 'Environment variable workdayRptUri is required.' }
 
+    # Preload PSGSuite and config so downstream commands run cleanly.
+    try {
+        Import-Module PSGSuite -ErrorAction Stop
+        $resolvedConfigPath = Join-Path $env:PSGSUITE_HOME 'Configuration.psd1'
+        if (-not (Test-Path $resolvedConfigPath)) {
+            throw "Expected PSGSuite config file not found: $resolvedConfigPath"
+        }
+        Get-PSGSuiteConfig | Out-Null
+    } catch {
+        throw "Failed to initialize PSGSuite: $($_.Exception.Message)"
+    }
+
     # Run sync.ps1
     $syncScript = Join-Path $scriptDir 'sync.ps1'
-    & $syncScript
-    $exitCode = $LASTEXITCODE
+    # Prevent sync pipeline objects from becoming Lambda response payload (can trigger JSON depth warnings).
+    & $syncScript | Out-Host
+    $exitCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
 
     return @{ ExitCode = $exitCode }
 }

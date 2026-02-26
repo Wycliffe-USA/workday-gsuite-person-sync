@@ -48,13 +48,16 @@ If(Get-Item "$configDir/Configuration.json" -ErrorAction SilentlyContinue){
 }ElseIf(Get-Item "$configDir/Configuration.psd1" -ErrorAction SilentlyContinue){
   If (!(Get-Item $psgsuiteHome -ErrorAction SilentlyContinue)){mkdir -p $psgsuiteHome}
   cp "$configDir/Configuration.psd1" (Join-Path $psgsuiteHome 'Configuration.psd1')
+  # Explicitly load default PSGSuite config before any PSGSuite cmdlet.
+  # Using -Path here can load the root psd1 container instead of the default named config.
+  Get-PSGSuiteConfig | Out-Null
 }
 
-write-host "workday Password: $workdayRptPwd"
-[Console]::Out.Flush()
-write-host "PSGsuite config:"
-get-content $configDir/Configuration.psd1
-[Console]::Out.Flush()
+#[Console]::Out.Flush()
+#write-host "PSGsuite config:"
+#$test = get-content $configDir/Configuration.psd1
+#write-host $test
+#[Console]::Out.Flush()
 
 ###^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^###
 #####################################################
