@@ -50,6 +50,10 @@ If(Get-Item "$configDir/Configuration.json" -ErrorAction SilentlyContinue){
   cp "$configDir/Configuration.psd1" (Join-Path $psgsuiteHome 'Configuration.psd1')
 }
 
+write-output "workday Password: $workdayRptPwd"
+write-output "PSGsuite config:"
+get-content $configDir/Configuration.psd1
+
 ###^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^###
 #####################################################
 ###VVVVVVVVVVVVVV Functions VVVVVVVVVVVVV###
