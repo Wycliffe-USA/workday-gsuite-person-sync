@@ -1,5 +1,5 @@
 # Workday-GSuite Person Sync - Lambda (Container Image)
-# Sensitive data (workdayRptPwd, Configuration.psd1) in SSM Parameter Store, fetched at runtime.
+# Sensitive data: workdayRptPwd in SSM, Configuration.psd1 in Secrets Manager (64KB limit).
 # GitHub Actions builds and pushes the Docker image to ECR.
 
 locals {
@@ -91,14 +91,20 @@ resource "aws_ssm_parameter" "workday_rpt_pwd" {
   }
 }
 
-resource "aws_ssm_parameter" "psgsuite_config" {
-  name        = var.psgsuite_config_param_name
+# -----------------------------------------------------------------------------
+# Secrets Manager - PSGSuite config (exceeds SSM 8KB limit)
+# -----------------------------------------------------------------------------
+resource "aws_secretsmanager_secret" "psgsuite_config" {
+  name        = var.psgsuite_config_secret_name
   description = "PSGSuite Configuration.psd1 content for workday-gsuite-person-sync Lambda"
-  type        = "SecureString"
-  value       = var.psgsuite_config_initial_value
+}
+
+resource "aws_secretsmanager_secret_version" "psgsuite_config" {
+  secret_id     = aws_secretsmanager_secret.psgsuite_config.id
+  secret_string = var.psgsuite_config_initial_value
 
   lifecycle {
-    ignore_changes = [value]
+    ignore_changes = [secret_string]
   }
 }
 
@@ -137,7 +143,12 @@ resource "aws_iam_role_policy" "lambda" {
       {
         Effect   = "Allow"
         Action   = ["ssm:GetParameter"]
-        Resource = [aws_ssm_parameter.workday_rpt_pwd.arn, aws_ssm_parameter.psgsuite_config.arn]
+        Resource = [aws_ssm_parameter.workday_rpt_pwd.arn]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = [aws_secretsmanager_secret.psgsuite_config.arn]
       }
     ]
   })
@@ -167,8 +178,8 @@ resource "aws_lambda_function" "sync" {
 
   environment {
     variables = {
-      WORKDAY_RPT_PWD_PARAM_NAME = aws_ssm_parameter.workday_rpt_pwd.name
-      PSGSUITE_CONFIG_PARAM_NAME = aws_ssm_parameter.psgsuite_config.name
+      WORKDAY_RPT_PWD_PARAM_NAME   = aws_ssm_parameter.workday_rpt_pwd.name
+      PSGSUITE_CONFIG_SECRET_NAME = aws_secretsmanager_secret.psgsuite_config.name
       workdayRptUsr              = var.workday_rpt_usr
       workdayRptUri              = var.workday_rpt_uri
       failsafeRecordChangeLimit  = tostring(var.failsafe_record_change_limit)

@@ -59,16 +59,16 @@ variable "workday_rpt_pwd_initial_value" {
   sensitive   = true
 }
 
-variable "psgsuite_config_param_name" {
-  description = "SSM Parameter Store name for PSGSuite Configuration.psd1 content (SecureString). Create with placeholder; set real value in Console/CLI."
+variable "psgsuite_config_secret_name" {
+  description = "Secrets Manager secret name for PSGSuite Configuration.psd1 content (supports up to 64KB vs SSM 8KB)."
   type        = string
-  default     = "/workday-gsuite-person-sync/psgsuite-config"
+  default     = "workday-gsuite-person-sync/psgsuite-config"
 }
 
 variable "psgsuite_config_initial_value" {
-  description = "Initial value for PSGSuite config SSM parameter. Set real Configuration.psd1 content in Console after first apply."
+  description = "Initial value for PSGSuite config secret. Set real Configuration.psd1 content via CLI/Console after first apply."
   type        = string
-  default     = "# Placeholder - set real Configuration.psd1 content in Console/CLI"
+  default     = "# Placeholder - set real Configuration.psd1 content via: aws secretsmanager put-secret-value --secret-id <name> --secret-string file://config/Configuration.psd1"
   sensitive   = true
 }
 

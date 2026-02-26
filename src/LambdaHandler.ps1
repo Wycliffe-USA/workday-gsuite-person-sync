@@ -1,9 +1,9 @@
 # Lambda handler for Workday-GSuite sync (container image).
-# Fetches workdayRptPwd and Configuration.psd1 from SSM Parameter Store at runtime,
-# writes config to /config/Configuration.psd1, sets env, then runs sync.ps1.
+# Fetches workdayRptPwd from SSM, Configuration.psd1 from Secrets Manager (64KB limit vs SSM 8KB).
 #
 # Handler format for aws-lambda-powershell-runtime: script.ps1::handler
 #Requires -Modules @{ ModuleName = 'AWS.Tools.SimpleSystemsManagement'; ModuleVersion = '4.0.0' }
+#Requires -Modules @{ ModuleName = 'AWS.Tools.SecretsManager'; ModuleVersion = '4.0.0' }
 
 $ErrorActionPreference = 'Stop'
 $scriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
@@ -30,22 +30,22 @@ function handler {
         throw "Failed to retrieve Workday password from SSM parameter '$workdayPwdParamName': $_"
     }
 
-    # SSM parameter containing PSGSuite Configuration.psd1 content (SecureString)
-    $configParamName = $env:PSGSUITE_CONFIG_PARAM_NAME
-    if (-not $configParamName) {
-        throw 'Environment variable PSGSUITE_CONFIG_PARAM_NAME is required (SSM parameter name for Configuration.psd1 content).'
+    # Secrets Manager secret containing PSGSuite Configuration.psd1 content (supports up to 64KB)
+    $configSecretName = $env:PSGSUITE_CONFIG_SECRET_NAME
+    if (-not $configSecretName) {
+        throw 'Environment variable PSGSUITE_CONFIG_SECRET_NAME is required (Secrets Manager secret name for Configuration.psd1 content).'
     }
 
     try {
-        $configParam = Get-SSMParameter -Name $configParamName -WithDecryption $true
+        $secret = Get-SECSecretValue -SecretId $configSecretName
         $configDir = '/tmp/config'
         New-Item -ItemType Directory -Path $configDir -Force | Out-Null
-        $configParam.Value | Set-Content -Path (Join-Path $configDir 'Configuration.psd1') -Encoding utf8
+        $secret.SecretString | Set-Content -Path (Join-Path $configDir 'Configuration.psd1') -Encoding utf8
         $env:PSGSUITE_CONFIG_DIR = $configDir
         $env:PSGSUITE_HOME = '/tmp/.config/powershell/SCRT HQ/PSGSuite'
         $env:HOME = '/tmp'
     } catch {
-        throw "Failed to retrieve or write PSGSuite config from SSM parameter '$configParamName': $_"
+        throw "Failed to retrieve or write PSGSuite config from Secrets Manager secret '$configSecretName': $_"
     }
 
     # workdayRptUsr, workdayRptUri, failsafeRecordChangeLimit set via Lambda environment variables

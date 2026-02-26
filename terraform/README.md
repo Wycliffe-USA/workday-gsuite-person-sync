@@ -1,12 +1,13 @@
 # Workday-GSuite Person Sync – Lambda (Terraform)
 
-Deploy the Workday-GSuite sync as an **AWS Lambda function** using a **Docker container image**. Sensitive data (Workday password, PSGSuite Configuration.psd1) is stored in **SSM Parameter Store** (SecureString) and fetched at runtime. **GitHub Actions** builds the image and pushes it to ECR.
+Deploy the Workday-GSuite sync as an **AWS Lambda function** using a **Docker container image**. Sensitive data: **Workday password** in SSM Parameter Store, **PSGSuite Configuration.psd1** in **Secrets Manager** (64KB limit vs SSM 8KB). **GitHub Actions** builds the image and pushes it to ECR.
 
 ## Architecture
 
 - **Lambda** – Container image (PowerShell + PSGSuite + sync scripts)
 - **ECR** – Container image repository
-- **SSM Parameter Store** – `workdayRptPwd` and full `Configuration.psd1` content (SecureString)
+- **SSM Parameter Store** – `workdayRptPwd` (Workday API password)
+- **Secrets Manager** – Full `Configuration.psd1` content (supports up to 64KB)
 - **EventBridge** – Optional scheduled runs (set `schedule_cron`)
 
 ## Bootstrap order (first-time setup)
@@ -35,9 +36,12 @@ The Lambda function requires an existing container image in ECR. Use this order:
    terraform apply
    ```
 
-5. **Set real SSM values** in AWS Console (Parameter Store):
-   - Update `/workday-gsuite-person-sync/workday-rpt-pwd` with the real Workday password
-   - Update `/workday-gsuite-person-sync/psgsuite-config` with the full contents of your `config/Configuration.psd1` file
+5. **Set real sensitive values**:
+   - **Workday password** – Update SSM parameter `/workday-gsuite-person-sync/workday-rpt-pwd` in AWS Console (Parameter Store)
+   - **PSGSuite config** – Put Configuration.psd1 into Secrets Manager:
+     ```bash
+     aws secretsmanager put-secret-value --secret-id workday-gsuite-person-sync/psgsuite-config --secret-string file://config/Configuration.psd1
+     ```
 
 ## GitHub Actions setup
 
@@ -60,8 +64,8 @@ Optional **repository variables**:
 | `failsafe_record_change_limit` | Max record changes per run | `5` |
 | `workday_rpt_pwd_param_name` | SSM parameter name for password | `/workday-gsuite-person-sync/workday-rpt-pwd` |
 | `workday_rpt_pwd_initial_value` | Initial SSM value (change in Console) | `PLACEHOLDER_CHANGE_ME` |
-| `psgsuite_config_param_name` | SSM parameter for Configuration.psd1 content | `/workday-gsuite-person-sync/psgsuite-config` |
-| `psgsuite_config_initial_value` | Initial SSM value (change in Console) | Placeholder |
+| `psgsuite_config_secret_name` | Secrets Manager secret for Configuration.psd1 (64KB limit) | `workday-gsuite-person-sync/psgsuite-config` |
+| `psgsuite_config_initial_value` | Initial secret value (set real via CLI after apply) | Placeholder |
 | `lambda_image_tag` | Docker image tag | `latest` |
 | `lambda_timeout_seconds` | Lambda timeout (max 900) | `900` |
 | `lambda_memory_mb` | Lambda memory (MB) | `1024` |
@@ -81,8 +85,8 @@ terraform apply
 - `lambda_function_name` – Invoke this to run the sync manually
 - `lambda_function_arn` – ARN of the function
 - `ecr_repository_url` – ECR URL (used by GitHub Actions)
-- `workday_rpt_pwd_param_name` – SSM parameter for password
-- `psgsuite_config_param_name` – SSM parameter for PSGSuite config
+- `workday_rpt_pwd_param_name` – SSM parameter for Workday password
+- `psgsuite_config_secret_name` – Secrets Manager secret for PSGSuite config
 - `github_actions_aws_access_key_id` – Use as GitHub secret `AWS_ACCESS_KEY_ID`
 - `github_actions_aws_secret_access_key` – Use as GitHub secret `AWS_SECRET_ACCESS_KEY` (sensitive)
 

@@ -1,6 +1,6 @@
 # Lambda container image for Workday-GSuite sync.
 # Base: AWS Lambda provided (AL2023). PowerShell + AWS PowerShell Lambda runtime + PSGSuite.
-# Sensitive data (workdayRptPwd, Configuration.psd1) is fetched from SSM at runtime by LambdaHandler.ps1.
+# Sensitive data: workdayRptPwd from SSM, Configuration.psd1 from Secrets Manager (64KB limit).
 #
 # Uses aws-lambda-powershell-runtime bootstrap so lambda-entrypoint.sh receives exactly one handler arg
 # (format: script.ps1::function). The default ENTRYPOINT [/lambda-entrypoint.sh] is kept.
@@ -25,7 +25,7 @@ RUN cp $RUNTIME_DIR/bootstrap /var/runtime && \
     rm -rf /tmp/aws-lambda-powershell-runtime && \
     dnf clean all
 
-# App stage: PSGSuite + AWS.Tools.SSM + our scripts
+# App stage: PSGSuite + AWS.Tools.SSM + AWS.Tools.SecretsManager + our scripts
 FROM public.ecr.aws/amazonlinux/amazonlinux:2023 AS app
 ARG PS_VERSION=7.4.10
 RUN dnf install -y tar gzip libicu && \
@@ -41,7 +41,8 @@ RUN dnf install -y tar gzip libicu && \
 RUN pwsh -NoProfile -Command ' \
     $ErrorActionPreference = "Stop"; $ProgressPreference = "SilentlyContinue"; \
     Install-Module -Name PSGSuite -RequiredVersion 2.36.4 -Force -Scope AllUsers; \
-    Install-Module -Name AWS.Tools.SimpleSystemsManagement -Force -Scope AllUsers \
+    Install-Module -Name AWS.Tools.SimpleSystemsManagement -Force -Scope AllUsers; \
+    Install-Module -Name AWS.Tools.SecretsManager -Force -Scope AllUsers \
 '
 COPY src/LambdaHandler.ps1 src/sync.ps1 /var/task/
 WORKDIR /var/task

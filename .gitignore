@@ -5,7 +5,7 @@
 # Exclude .p12 files (store key material in Parameter Store; use Configuration.psd1 content there)
 *.p12
 
-# Exclude PSGSuite config (store content in Parameter Store as PSGSUITE_CONFIG_PARAM_NAME)
+# Exclude PSGSuite config (store content in Secrets Manager as PSGSUITE_CONFIG_SECRET_NAME)
 Configuration.psd1
 config/Configuration.psd1
 configuration.*

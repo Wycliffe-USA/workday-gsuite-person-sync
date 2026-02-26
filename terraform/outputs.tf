@@ -23,9 +23,9 @@ output "workday_rpt_pwd_param_name" {
   value       = aws_ssm_parameter.workday_rpt_pwd.name
 }
 
-output "psgsuite_config_param_name" {
-  description = "SSM parameter name for PSGSuite config (set real value in AWS Console)"
-  value       = aws_ssm_parameter.psgsuite_config.name
+output "psgsuite_config_secret_name" {
+  description = "Secrets Manager secret name for PSGSuite config (set real value via CLI/Console)"
+  value       = aws_secretsmanager_secret.psgsuite_config.name
 }
 
 # -----------------------------------------------------------------------------
