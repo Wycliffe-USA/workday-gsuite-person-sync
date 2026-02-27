@@ -9,8 +9,6 @@ param (
   [string]$emailIDFieldName       = 'WycliffeUSAEmailID'
 )
 
-write-host "Script Version: $scriptVersion"
-
 ## Notes
 # Purpose : Sync Workday user attributes to gSuite
 # -workdayRptUsr : User account to access workday report containing workday user information.
@@ -36,6 +34,7 @@ $global:ProgressPreference = "SilentlyContinue"
 $gSuiteUsers = @{}
 $workdayUsers = @{}
 
+write-host "Script Version: $scriptVersion"
 ########################################################
 ###VVVVVVVVV Initial PSGSuite Configuration VVVVVVVVV###
 # The PSGSuite module requires a configuration file to be set up.
