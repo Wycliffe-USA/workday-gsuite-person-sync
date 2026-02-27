@@ -1,5 +1,5 @@
 # escape=`
-FROM mcr.microsoft.com/powershell:ubuntu-22.04
+FROM mcr.microsoft.com/powershell:ubuntu-24.04
 #Workday to GSuite Person Sync
 # Using powershell core on Linux as a base. (Use pwsh.exe instead of powershell.exe)
 

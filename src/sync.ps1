@@ -1,7 +1,7 @@
 #!/usr/bin/pwsh -noprofile
 [CmdletBinding(SupportsShouldProcess=$true)]
 param (
-  [string]$scriptVersion = '1.7',
+  [string]$scriptVersion = '1.8',
   [string]$workdayRptUsr,
   [string]$workdayRptPwd,
   [string]$workdayRptUri,
