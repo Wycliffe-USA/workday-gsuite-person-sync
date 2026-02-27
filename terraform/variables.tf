@@ -90,9 +90,3 @@ variable "lambda_memory_mb" {
   type        = number
   default     = 1024
 }
-
-variable "schedule_cron" {
-  description = "EventBridge schedule expression. Default: daily at 12:00pm UTC."
-  type        = string
-  default     = "cron(0 12 * * ? *)"
-}

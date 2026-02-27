@@ -188,30 +188,46 @@ resource "aws_lambda_function" "sync" {
 }
 
 # -----------------------------------------------------------------------------
-# EventBridge Schedule (optional)
+# EventBridge Schedule
 # -----------------------------------------------------------------------------
-resource "aws_cloudwatch_event_rule" "schedule" {
-  count = var.schedule_cron != "" ? 1 : 0
-
+# Weekdays 12-23 UTC, every 15 minutes
+resource "aws_cloudwatch_event_rule" "schedule_weekdays" {
   name                = "${local.lambda_name}-schedule"
-  description         = "Trigger Workday-GSuite sync"
-  schedule_expression = var.schedule_cron
+  description         = "Trigger Workday-GSuite sync (weekday business hours)"
+  schedule_expression = "cron(15,30,45 12-23 ? * MON-FRI *)"
 }
 
 resource "aws_cloudwatch_event_target" "lambda" {
-  count = var.schedule_cron != "" ? 1 : 0
-
-  rule      = aws_cloudwatch_event_rule.schedule[0].name
-  target_id = "SyncLambda"
+  rule      = aws_cloudwatch_event_rule.schedule_weekdays.name
+  target_id = "SyncLambdaWeekday"
   arn       = aws_lambda_function.sync.arn
 }
 
 resource "aws_lambda_permission" "events" {
-  count = var.schedule_cron != "" ? 1 : 0
-
-  statement_id  = "AllowExecutionFromEventBridge"
+  statement_id  = "AllowExecutionFromEventBridgeWeekday"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.sync.function_name
   principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.schedule[0].arn
+  source_arn    = aws_cloudwatch_event_rule.schedule_weekdays.arn
+}
+
+# Hourly, every day
+resource "aws_cloudwatch_event_rule" "schedule_hourly" {
+  name                = "${local.lambda_name}-schedule-hourly"
+  description         = "Trigger Workday-GSuite sync (hourly)"
+  schedule_expression = "cron(0 * * * ? *)"
+}
+
+resource "aws_cloudwatch_event_target" "lambda_hourly" {
+  rule      = aws_cloudwatch_event_rule.schedule_hourly.name
+  target_id = "SyncLambdaHourly"
+  arn       = aws_lambda_function.sync.arn
+}
+
+resource "aws_lambda_permission" "events_hourly" {
+  statement_id  = "AllowExecutionFromEventBridgeHourly"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.sync.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.schedule_hourly.arn
 }
