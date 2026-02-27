@@ -1,6 +1,6 @@
 # Workday-GSuite Person Sync – Lambda (Terraform)
 
-Deploy the Workday-GSuite sync as an **AWS Lambda function** using a **Docker container image**. Sensitive data: **Workday password** in SSM Parameter Store, **PSGSuite Configuration.psd1** in **Secrets Manager** (64KB limit vs SSM 8KB). **GitHub Actions** builds the image and pushes it to ECR.
+Deploy the Workday-GSuite Person sync as an **AWS Lambda function** using a **Docker container image**. Sensitive data: **Workday password** in SSM Parameter Store, **PSGSuite Configuration.psd1** in **Secrets Manager** (64KB limit vs SSM 8KB). **GitHub Actions** builds the image and pushes it to ECR.
 
 ## Architecture
 

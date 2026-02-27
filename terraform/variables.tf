@@ -42,7 +42,7 @@ variable "workday_rpt_uri" {
 variable "failsafe_record_change_limit" {
   description = "Maximum record changes per run before script exits (safety limit)"
   type        = number
-  default     = 5
+  default     = 30
 }
 
 # SSM Parameter Store - sensitive values stored here, fetched at runtime by Lambda
