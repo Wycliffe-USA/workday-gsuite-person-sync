@@ -1,12 +1,15 @@
 #!/usr/bin/pwsh -noprofile
 [CmdletBinding(SupportsShouldProcess=$true)]
 param (
+  [string]$scriptVersion = '1.7',
   [string]$workdayRptUsr,
   [string]$workdayRptPwd,
   [string]$workdayRptUri,
   [int]$failsafeRecordChangeLimit = 5,
   [string]$emailIDFieldName       = 'WycliffeUSAEmailID'
 )
+
+write-host "Script Version: $scriptVersion"
 
 ## Notes
 # Purpose : Sync Workday user attributes to gSuite
